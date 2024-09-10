@@ -4,7 +4,7 @@ import (
 	"log"
 	"mime"
 	"net/http"
-	"os"
+
 	"path/filepath"
 	"strings"
 )
@@ -14,54 +14,33 @@ var compressionExtensions = map[string]string{
     ".br":  "br",
 }
 
+// TODO: add endpoint (key) target-file (values) as needed...
+var endpointHTML = map[string]string {
+    "/": "/index.html",
+}
+
 /*
 -- ==========================================
 -- -- server functions					-- --
 -- ==========================================
 */
 
-// func Home(w http.ResponseWriter, r *http.Request) {
-// 	http.ServeFile(w, r, "static")
-
-// 	// TODO: modular renderPage function (renders views? renders raw html passed in?)
-
-// 	// TODO: 3 options for routing (writing http...)
-// 	// err := ...
-// 	// w.Write()
-// 	// fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
-// }
-
-// serveCompressedFiles checks if the file has a compressed version (.gz or .br) and serves it with correct headers.
+// ServeCompressedFiles checks if the file has a compressed version (.gz or .br) and serves it with correct headers.
 func ServeCompressedFiles(w http.ResponseWriter, r *http.Request) {
     requestedPath := r.URL.Path
 	log.Printf("Requested Path from URL %s", requestedPath)
 
-    if requestedPath == "/" {
-        requestedPath = "/index.html"
+    targetHTML, ok := endpointHTML[requestedPath]
+    if ok {
+        requestedPath = targetHTML
     }
 
-    // Try to serve Brotli or Gzip version if available
-    for ext, encoding := range compressionExtensions {
-		log.Printf("--iterate-- %s -- %s", ext, encoding)
-
-        compressedFilePath := filepath.Join(".", "static", requestedPath+ext)
-		log.Printf("COMPRESSED FILE PATH: %s", compressedFilePath)
-
-		if _, err := os.Stat(compressedFilePath); err == nil {
-			log.Printf("Request for %s, serving compressed file %s with encoding %s\n", requestedPath, compressedFilePath, encoding)
-
-            w.Header().Set("Content-Encoding", encoding)
-
-			serveFile(w, r, compressedFilePath)
-
-			return
-        }
-    }
+    // TODO: Try to serve Brotli or Gzip version if available if compressed assets become large in PROD (see content-encoding below...)
 
     // Otherwise, serve the file without compression
-    toServe := filepath.Join(".", "static", requestedPath)
-    log.Printf("~~ serving uncompressed file ~~ %s", toServe)
-    serveFile(w, r, toServe)
+    requestedFile := filepath.Join(".", "static", requestedPath)
+
+    serveFile(w, r, requestedFile)
 }
 
 // serveFile serves the requested file and sets the correct Content-Type header.
@@ -81,23 +60,41 @@ func serveFile(w http.ResponseWriter, r *http.Request, filePath string) {
     // Detect the MIME type based on the file extension
     mimeType := mime.TypeByExtension(ext)
 
-	// if ext == ".html" {
-	// 	mimeType = "text/html"
-	// }
+    // TODO: add fallback for empty mimeType from ext as needed
+
+    w.Header().Set("Content-Type", mimeType)
+
+	// log.Printf("Serving file: %s with MIME type: %s\n", filePath, mimeType)
+
+    http.ServeFile(w, r, filePath)
+}
+
+/* -- FALLBACK MIME TYPE --
 
     if mimeType == "" {
         mimeType = "application/octet-stream"
     }
 
-    w.Header().Set("Content-Type", mimeType)
+*/
 
-    // *** DISABLE CACHING *** FOR DEVELOPMENT ONLY? ***
-    w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-    w.Header().Set("Pragma", "no-cache")
-    w.Header().Set("Expires", "0")
+/* -- MANUAL COMPRESSION CONTENT-ENCODING --
 
-    // Serve the file
-	log.Printf("Serving file: %s with MIME type: %s\n", filePath, mimeType)
-    // err := http.ServeFile(w, r, filePath)
-    http.ServeFile(w, r, filePath)
-}
+    for ext, encoding := range compressionExtensions {
+
+        baseFileName := strings.TrimSuffix(requestedPath, filepath.Ext(requestedPath))
+
+        compressedFilePath := filepath.Join(".", "static", baseFileName+ext)
+
+        log.Printf(compressedFilePath)
+
+		if _, err := os.Stat(compressedFilePath); err == nil {
+			log.Printf("Request for %s, serving compressed file %s with encoding %s\n", requestedPath, compressedFilePath, encoding)
+
+            w.Header().Set("Content-Encoding", encoding)
+
+			serveFile(w, r, compressedFilePath)
+
+			return
+        }
+    }
+*/
