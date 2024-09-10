@@ -6,6 +6,7 @@ import "net/http"
 func CacheControlMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// *** DISABLE CACHING *** FOR DEVELOPMENT ONLY? ***
+		// TODO: revisit rm for PROD
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("Expires", "0")
